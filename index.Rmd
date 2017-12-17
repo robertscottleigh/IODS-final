@@ -1,0 +1,161 @@
+---
+title: "IODS Final project"
+author: "Robert Leigh (robert.leigh@helsinki.fi)"
+date: "18 December 2017"
+output:
+  html_document:
+    theme: cosmo
+    toc: true
+    toc_depth: 2
+    fig_caption: true
+    fig_width: 12
+    fig_height: 8
+    code_folding: hide
+---
+
+ 
+#Abstract 
+The 'Boston' dataset includes information from the 1970 census about living conditions in the Boston area. The main focus of this report was to use principal component analysis to predict air pollution. All variables were graphically explored and principal component analysis was performed. The top five variables affecting the first principal component included non-retail business acres per town, nitrogen oxides concentration, full-value property tax rate, lower status of the population, and the index of accessibility to radial highways. The top five variables affecting the second principal component included median value of owner-occupied homes, number of rooms per dwelling, the Charles river, proportion of owner-occupied untis built prior to 1940, and nitrogen oxide concentrations. These components accounted for 58.5% of the variance of the data and were plotted in order to present a visual summary. Finally, principle component regression was used to develop a predictive model based on principle component analysis in order to estimate nitrogen oxide levels in different areas of Boston.
+
+
+#Research question 
+I seek to use principal component analysis on the Boston data set to summarize the variables and visualize colinear variables. I also seek to test if principle component regression using the variables in the Boston dataset can be used to predict the amount of air pollution in different areas of Boston. 
+
+#Data wrangling
+link: https://github.com/robertscottleigh/IODS-final/blob/master/create_final.R
+
+#Description of the variables
+The dataset is from the 1970 census in Boston, Massachussets. A description of the variables is shown below. They are related to factors affecting home value and air pollution in the Boston area. For this analysis, the data has been scaled so that the mean is equal to zero. 
+
+Variable descriptions (from https://www.cs.toronto.edu/~delve/data/boston/bostonDetail.html)
+crim = per capita crime rate by town
+zn = proportion of residential land zoned for lots over 25,000 sq.ft
+indus =  proportion of non-retail business acres per town.
+chas = Charles River dummy variable (= 1 if tract bounds river; 0 otherwise).
+nox = nitrogen oxides concentration (parts per 10 million).
+rm = average number of rooms per dwelling.
+age = proportion of owner-occupied units built prior to 1940.
+dis = weighted mean of distances to five Boston employment centres.
+rad = index of accessibility to radial highways.
+tax = full-value property-tax rate per \$10,000.
+ptratio = pupil-teacher ratio by town.
+black = 1000(Bk - 0.63)^2 where Bk is the proportion of blacks by town.
+lstat = lower status of the population (percent).
+medv = median value of owner-occupied homes in \$1000s.
+
+
+
+```{r, warning=FALSE, message=FALSE}
+
+library(ggplot2)
+library(GGally)
+library(pls)
+boston_scaled <- read.table("C:/HY-Data/LEIGH/course material/introduction_to_open_data_science/IODS-final/final.txt", sep=",", header=TRUE)
+
+```
+
+#Exploration of the variables
+A summary of the variables is shown below. As the variables had previously been scaled, the mean for all variables is zero. Those with the largest ranges in values include 'crim', 'dis', 'zn'. 
+
+```{r}
+summary(boston_scaled)
+```
+
+
+In order to identify potential relationships between the variables, they were plotted against one another to allow visual exploration. As the later parts of the report focus on the variable 'nox', which represents the nitrogen oxides concentration, I will focus on those here. Positive correlations are seen betwen nox and the following variables: age, lstat, and indus. Negative correlations are seen between nox and rm, dis, and medv. One would expect these relationships to also be apparent on our PCA plots.
+
+```{r}
+ggpairs(boston_scaled)
+```
+
+#Brief description of the method (Principle component analysis/principle component regression)
+
+Principle component analysis is a dimension reduction method. This means that it takes a dataset with high numbers of observations and high number of variables, and reduces it to a two dimensional plot. This is beneficial, in that it facilitates the understanding of the data by humans, who can only understand in 2-3 dimensions. Additionally, principle component analysis can be combined with regression to generate statistical models of the variables and to make predictions.
+
+
+#Results of the analysis
+
+
+```{r}
+pca_boston_scaled <- prcomp(boston_scaled)
+
+```
+
+
+
+Principal component analysis was performed on the scaled data, and the 14 principal components and their standard deviations are shown below. Additionally, the rotation for each variable in the princiapl components is shown. The rotation value corresponds to the amount those variables affect that particular principle component direction. Those which are furthest from zero have the largest effects on that principle component. In principle component 1(PC1), the variables which most affect are 'indus', 'nox', 'rad', 'tax', and lstat. In principle component 2 (PC2), the variables which most affect are 'chas', 'rm', 'dis', 'ptratio', 'medv'.
+
+```{r}
+pca_boston_scaled
+```
+
+
+The summary of the PCA shows the variance explained by each principal components, as well as the standard deviation. The first two principal components explain 58.54% of the variance, as evidenced by the 'cumulative proportion' variable. The variance explained by each principal component becomes reduced with time. To achieve >90% of variance, 8 principal components are needed. As there was a starting point with 14 variables, principal component analysis was successful at reducing the number of dimensions. As I am new to PCA, I am not sure how these results reflect the suitability of PCA for this dataset. In general, one would hope as few principal components as possible could reflect a larger amount of variance. 
+
+```{r}
+summary(pca_boston_scaled)
+```
+
+The principal component analysis is visualized by plotting the first principal component on the x-axis, and the second principal component on the y-axis. Individual observations are shown on the plot, as well as the variables with arrows. The observations which are in the direction of the arrows (variables) are most affected by those variables. Additionally, arrows(variables) pointing in similar directions affect variance similarly. In other words, those variables likely have correlations to one another. PCA thus allows showing in a single plot, both grouped observations and grouped variables. Colinearity seems to occur between age vs nox, rad vs tax, and medv vs rm. The closest variables to our main variable of interest, 'nox', are 'age' and 'indus'. Age and industry had clear positive correlations with nox in our previous graphical exploration.
+
+
+```{r}
+biplot(pca_boston_scaled, choices = 1:2, cex=c(0.8, 1.4))
+```
+
+I will now seek to combine principal component analysis with linear regression. First, I divide the dataset into training and testing datasets. The training dataset contains 80% of the data, and the testing dataset contains 20% of the data. We will attempt to use the PCA model to examine the variable 'nox', which represents nitrogen oxide pollution.
+
+
+```{r}
+n <- nrow(boston_scaled)
+ind <- sample(n,  size = n * 0.8)
+boston_scaled.train <- boston_scaled[ind,]
+boston_scaled.test <- boston_scaled[-ind,]
+test_classes <- boston_scaled.test$nox
+boston_scaled.test <- dplyr::select(boston_scaled.test, -nox)
+
+```
+
+The training data is used to generate a principle component regression model. This has been done using the pcR() function, which is available in the 'stats' package. The output of the principle component regression is visible below. The cross-validation for each component is shown. Similarly to the previous analysis, 56.54% of variance is explained by the first two principal components. FOr the nox variable, a slightly higher percentage (67.48%) is explained by the first two principal components. Note that these values can change in the final version, as there is random allocation into training and test datasets. However, repeated iterations gave similar results
+
+```{r}
+
+boston_scaled.pcr <- pcr(nox~., data = boston_scaled.train, scale = TRUE, validation = "CV")
+summary(boston_scaled.pcr)
+
+```
+
+A validation plot suggests that 7-8 principal components are necessary before the variance is reduced to its lowest point. As the initial number of starting variables was 14, some dimention reduction did indeed occur on the training dataset. These results are overlapping with the initial PCA analysis, which was performed on the full 'Boston' dataset. 
+
+```{r}
+validationplot(boston_scaled.pcr)
+
+```
+
+
+
+A prediction plot is shown, in which the values measured on the x-axis are plotted against the values predicted by the model. Note this data is still from the training dataset. Though there is a clear linear relationship between measured and predicted values, the model appears innacurate. It is clear from the difference in legends, that the predicted values are consistently lower than the measured values. 
+
+```{r}
+predplot(boston_scaled.pcr)
+```
+
+
+Now the principle component regression model is used to predict the missing 'nox' values from the training data. As the above analysis showed the first two principal components explained 67.48% of the variance for the 'nox' variable, and that this only moderately increased with inclusion of more principal components, I chose to only use two principal components to predict the values. The actual values are shown in the first matrix, and the predicted values are shown in the second matrix. The average error of prediction is shown.
+
+```{r}
+boston_scaled_predict.pcr <- predict(boston_scaled.pcr, boston_scaled.test, ncomp = 2)
+"Actual values"
+test_classes
+"Predicted values"
+boston_scaled_predict.pcr
+"Average prediction error"
+mean(abs((boston_scaled_predict.pcr - test_classes)))
+
+```
+
+
+#Conclusion and discussion
+
+
+Principle component analysis and principle component regression were used to analyze the Boston dataset. My first impression of principle component analysis is that it is a very good way to observe a multivariate dataset. In the current analysis, it became apparent from PCA analysis that there was a clear group of observations in the PC1 direction which were mostly affected by age of dwelling, noxious gas particles, nearby industry, lower status of the population, highways, property tax, crime rate, and parent-teacher ratio. If I were truly interested in continuing this study, I might seek additionaly information about these industrial towns and relationship towards pollution. Following the visualization technique of principle component analysis, I conducted principle component regression of the 'nox' variable, representing the nitrogen oxide particles. The conduction of this analysis is relatively straightforward using the 'stats' package. For application of these methods to my own datasets, I will likely try several different methods to test their predictive capacity. 
