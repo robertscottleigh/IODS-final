@@ -1,0 +1,14 @@
+---
+title: "README"
+output: html_document
+---
+
+## IODS-FINAL for Robert Leigh
+
+This Github repository contains the final project of Robert Leigh for the 2017 Introduction to Open Data Science course. A link to the diary is below. 
+
+<https://robertscottleigh.github.io/IODS-final/>.
+
+
+
+
